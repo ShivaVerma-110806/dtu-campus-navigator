@@ -19,7 +19,10 @@ export const createLocation = async (req, res) => {
       category,
       building,
       floor,
+      roomNumber,
+      keywords,
       images,
+      status,
     } = req.body;
 
     if (
@@ -46,16 +49,28 @@ export const createLocation = async (req, res) => {
       });
     }
 
+    const parsedKeywords = Array.isArray(keywords)
+      ? keywords
+      : typeof keywords === "string"
+      ? keywords.split(",").map((k) => k.trim())
+      : [];
+
     const location = await Locations.create({
       name,
       description,
       address,
       slug,
-      coordinates,
+      location: {
+        type: "Point",
+        coordinates: [Number(coordinates.longitude), Number(coordinates.latitude)],
+      },
       category,
       building,
       floor,
+      roomNumber,
+      keywords: parsedKeywords,
       images,
+      status: status || "Published",
       createdBy: req.user._id,
     });
 
@@ -94,7 +109,10 @@ export const updateLocation = async (req, res) => {
       category,
       building,
       floor,
+      roomNumber,
+      keywords,
       images,
+      status,
     } = req.body;
 
     const location = await Locations.findById(id);
@@ -109,11 +127,27 @@ export const updateLocation = async (req, res) => {
     location.name = name || location.name;
     location.description = description || location.description;
     location.address = address || location.address;
-    location.coordinates = coordinates || location.coordinates;
     location.category = category || location.category;
     location.building = building || location.building;
     location.floor = floor || location.floor;
+    location.roomNumber = roomNumber !== undefined ? roomNumber : location.roomNumber;
     location.images = images || location.images;
+    location.status = status || location.status;
+
+    if (keywords !== undefined) {
+      location.keywords = Array.isArray(keywords)
+        ? keywords
+        : typeof keywords === "string"
+        ? keywords.split(",").map((k) => k.trim())
+        : [];
+    }
+
+    if (coordinates && coordinates.latitude && coordinates.longitude) {
+      location.location = {
+        type: "Point",
+        coordinates: [Number(coordinates.longitude), Number(coordinates.latitude)],
+      };
+    }
 
     await location.save();
 
@@ -204,7 +238,7 @@ export const searchLocations = async (req, res) => {
           { keywords: { $in: [new RegExp(searchQuery, "i")] } },
         ],
       }).select(
-        "name slug category building floor roomNumber coordinates images"
+        "name slug category building floor roomNumber location images"
       );
   
       if (locations.length === 0) {

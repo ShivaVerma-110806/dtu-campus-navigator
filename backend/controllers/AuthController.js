@@ -72,6 +72,8 @@ export const register = async (req, res) => {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,
+        role: newUser.role,
+        isSuspended: newUser.isSuspended,
       },
     });
 
@@ -110,6 +112,13 @@ export const login = async (req, res) => {
       });
     }
 
+    if (user.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been suspended by an administrator.",
+      });
+    }
+
     // Compare Password
     const isMatch = await bcrypt.compare(password, user.password);
 
@@ -139,6 +148,8 @@ export const login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
+        isSuspended: user.isSuspended,
       },
     });
 
@@ -165,4 +176,78 @@ export const logout = (req, res) => {
     message: "Logged out successfully",
   });
 
+};
+
+// ====================== ADMIN USER MANAGEMENT ======================
+
+export const getAllUsers = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    const users = await Users.find().select("-password").sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+export const updateUserRole = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    const { id } = req.params;
+    const { role } = req.body;
+    if (!role || !["admin", "student"].includes(role)) {
+      return res.status(400).json({ success: false, message: "Invalid role value" });
+    }
+    const user = await Users.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    user.role = role;
+    await user.save();
+    res.status(200).json({ success: true, message: "User role updated successfully", data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+export const updateUserStatus = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    const { id } = req.params;
+    const { isSuspended } = req.body;
+    const user = await Users.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    user.isSuspended = isSuspended !== undefined ? isSuspended : !user.isSuspended;
+    await user.save();
+    res.status(200).json({ success: true, message: "User suspension state updated", data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+};
+
+export const deleteUser = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+    const { id } = req.params;
+    if (id === req.user._id.toString()) {
+      return res.status(400).json({ success: false, message: "Cannot delete your own account" });
+    }
+    const user = await Users.findByIdAndDelete(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    res.status(200).json({ success: true, message: "User deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
 };

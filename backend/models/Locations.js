@@ -118,6 +118,12 @@ const locationSchema = new mongoose.Schema(
       default: true,
     },
 
+    status: {
+      type: String,
+      enum: ["Published", "Draft"],
+      default: "Published",
+    },
+
     // Added By
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -131,7 +137,20 @@ const locationSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// Virtual property for coordinates mapping to GeoJSON
+locationSchema.virtual("coordinates").get(function() {
+  if (this.location && this.location.coordinates && this.location.coordinates.length >= 2) {
+    return {
+      longitude: this.location.coordinates[0],
+      latitude: this.location.coordinates[1],
+    };
+  }
+  return null;
+});
 
 export default mongoose.model("Location", locationSchema);
